@@ -102,6 +102,16 @@ struct tty_client {
     LIST_ENTRY(tty_client) list;
 };
 
+struct per_session_data {
+	struct lws_spa *spa;
+	char result[LWS_PRE + 512];
+	int result_len;
+	char filename[64];
+	long file_length;
+    long justAuthenticate; //a flag we'll use know if we have Authenticate or not...
+    long justHeader; //a flag we'll use know if we have sent a header or not...
+};
+
 struct othsec_server {
     LIST_HEAD(client, tty_client) clients;    // client list
     int client_count;                         // client count

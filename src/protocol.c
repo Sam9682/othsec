@@ -9,20 +9,21 @@ int send_initial_message(struct lws *wsi) {
     gethostname(hostname, sizeof(hostname) - 1);
 
     // window title
-    n = sprintf((char *) p, "%c%s (%s)", SET_WINDOW_TITLE, server->command1, hostname);
-    if (lws_write(wsi, p, (size_t) n, LWS_WRITE_BINARY) < n) {
-        return -1;
-    }
+    //n = sprintf((char *) p, "%c%s (%s)", SET_WINDOW_TITLE, server->command1, hostname);
+    //if (lws_write(wsi, p, (size_t) n, LWS_WRITE_BINARY) < n) {
+    //    return -1;
+    //}
     // reconnect time
-    n = sprintf((char *) p, "%c%d", SET_RECONNECT, server->reconnect);
-    if (lws_write(wsi, p, (size_t) n, LWS_WRITE_BINARY) < n) {
-        return -1;
-    }
+    //n = sprintf((char *) p, "%c%d", SET_RECONNECT, server->reconnect);
+    //if (lws_write(wsi, p, (size_t) n, LWS_WRITE_BINARY) < n) {
+    //    return -1;
+    //}
     // client preferences
-    n = sprintf((char *) p, "%c%s", SET_PREFERENCES, server->prefs_json);
-    if (lws_write(wsi, p, (size_t) n, LWS_WRITE_BINARY) < n) {
-        return -1;
-    }
+    //n = sprintf((char *) p, "%c%s", SET_PREFERENCES, server->prefs_json);
+    //if (lws_write(wsi, p, (size_t) n, LWS_WRITE_BINARY) < n) {
+    //    return -1;
+    //}
+	//lws_callback_on_writable(wsi);
     return 0;
 }
 
@@ -136,7 +137,7 @@ void * thread_run_command(void *args) {
                 pthread_exit((void *) 1);
             }
 
-            fprintf(stdout, "Current command argv1 : cmd = %d, %s \n", (int)client->cmd, (char *)server->argv1[0]);
+            lwsl_notice("Current command argv1 : cmd = %d, %s \n", (int)client->cmd, (const char *)&server->argv1[0]);
 	    if (client->cmd == 1) {
             	if (execvp(server->argv1[0], server->argv1) < 0) {
                	 	perror("execvp");
@@ -158,18 +159,22 @@ void * thread_run_command(void *args) {
             client->running = true;
             if (client->size.ws_row > 0 && client->size.ws_col > 0)
                 ioctl(client->pty, TIOCSWINSZ, &client->size);
-
-            while (client->running) {
+            while (client->running) 
+			{
                 FD_ZERO (&des_set);
                 FD_SET (pty, &des_set);
 
                 if (select(pty + 1, &des_set, NULL, NULL, NULL) < 0)
                     break;
 
-                if (FD_ISSET (pty, &des_set)) {
-                    while (client->running) {
+                if (FD_ISSET (pty, &des_set)) 
+				{
+			        lwsl_notice("FDISSET >0 pty: %d\n", (int) pty);
+                    while (client->running) 
+					{
                         pthread_mutex_lock(&client->mutex);
-                        if (client->state == STATE_READY) {
+                        if (client->state == STATE_READY) 
+						{
                             pthread_mutex_unlock(&client->mutex);
                             usleep(5);
                             continue;
@@ -188,13 +193,14 @@ void * thread_run_command(void *args) {
     pthread_exit((void *) 0);
 }
 
-int
-callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
-             void *user, void *in, size_t len) {
+int callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
+             void *user, void *in, size_t len) 
+{
     struct tty_client *client = (struct tty_client *) user;
     char buf[256];
 
-    switch (reason) {
+    switch (reason) 
+	{
         case LWS_CALLBACK_FILTER_PROTOCOL_CONNECTION:
             if (server->once && server->client_count > 0) {
                 lwsl_warn("refuse to serve WS client due to the --once option.\n");
@@ -204,23 +210,27 @@ callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
                 lwsl_warn("refuse to serve WS client due to the --max-clients option.\n");
                 return 1;
             }
-            if (lws_hdr_copy(wsi, buf, sizeof(buf), WSI_TOKEN_GET_URI)) {
-            	if ( strcmp(buf, WS_PATH1) == 0) {
-			client->cmd = 1;
-		}
-		else
-            	if ( strcmp(buf, WS_PATH2) == 0) {
-			client->cmd = 2;
-		}
-		else
-		{
-                	lwsl_warn("refuse to serve WS client for illegal ws path: %s\n", buf);
-                	return 1;
-		}
+            if (lws_hdr_copy(wsi, buf, sizeof(buf), WSI_TOKEN_GET_URI)) 
+			{
+            	if ( (strcmp(buf, WS_PATH1) == 0) || (strcmp(buf, "/ws") == 0))
+				{
+					client->cmd = 1;
+				}
+				else
+				if ( strcmp(buf, WS_PATH2) == 0) 
+				{
+					client->cmd = 2;
+				}
+				else
+				{
+					lwsl_warn("refuse to serve WS client for illegal ws path: %s\n", buf);
+					return 1;
+				}
             	fprintf(stdout, "Current command argv : cmd = %d, %s\n", (int)client->cmd, (char *) buf);
             }
 
-            if (server->check_origin && !check_host_origin(wsi)) {
+            if (server->check_origin && !check_host_origin(wsi)) 
+			{
                 lwsl_warn("refuse to serve WS client from different origin due to the --check-origin option.\n");
                 return 1;
             }
@@ -249,8 +259,10 @@ callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
             break;
 
         case LWS_CALLBACK_SERVER_WRITEABLE:
-            if (!client->initialized) {
-                if (send_initial_message(wsi) < 0) {
+            if (!client->initialized) 
+			{
+                if (send_initial_message(wsi) < 0) 
+				{
                     tty_client_remove(client);
                     lws_close_reason(wsi, LWS_CLOSE_STATUS_UNEXPECTED_CONDITION, NULL, 0);
                     return -1;
@@ -262,7 +274,8 @@ callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
                 break;
 
             // read error or client exited, close connection
-            if (client->pty_len <= 0) {
+            if (client->pty_len <= 0) 
+			{
                 tty_client_remove(client);
                 lws_close_reason(wsi,
                                  client->pty_len == 0 ? LWS_CLOSE_STATUS_NORMAL
@@ -270,7 +283,7 @@ callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
                                  NULL, 0);
                 return -1;
             }
-
+			else
             {
                 size_t n = (size_t) client->pty_len + 1;
                 unsigned char message[LWS_PRE + n];
