@@ -66,6 +66,7 @@
 // websocket url path
 #define WS_PATH1 "/tcpdump"
 #define WS_PATH2 "/tail"
+#define WS_PATH3 "/sniffer"
 
 #define BUF_SIZE 32000 // 32K
 
@@ -133,9 +134,8 @@ struct othsec_server {
     pthread_mutex_t mutex;
 };
 
-extern int
-callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len);
+extern int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len);
 
-extern int
-callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len);
+extern int callback_tty(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len);
 
+extern int sniffer();

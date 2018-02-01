@@ -137,21 +137,25 @@ void * thread_run_command(void *args) {
                 pthread_exit((void *) 1);
             }
 
-            lwsl_notice("Current command argv1 : cmd = %d, %s \n", (int)client->cmd, (const char *)&server->argv1[0]);
-	    if (client->cmd == 1) {
-            	if (execvp(server->argv1[0], server->argv1) < 0) {
-               	 	perror("execvp");
-                	pthread_exit((void *) 1);
-            	}
-	    }
-	    else
-	    if (client->cmd == 2) {
-            	if (execvp(server->argv2[0], server->argv2) < 0) {
-               	 	perror("execvp");
-                	pthread_exit((void *) 1);
-            	}
-	    }
-            break;
+            //lwsl_notice("Current command argv1 : cmd = %d, %s \n", (int)client->cmd, (const char *)&server->argv1[0]);
+			if (client->cmd == 1) {
+					if (execvp(server->argv1[0], server->argv1) < 0) {
+						perror("execvp");
+						pthread_exit((void *) 1);
+					}
+			}
+			else
+			if (client->cmd == 2) {
+					if (execvp(server->argv2[0], server->argv2) < 0) {
+						perror("execvp");
+						pthread_exit((void *) 1);
+					}
+			}
+			else
+			if (client->cmd == 3) {
+					sniffer( 1);
+			}            
+			break;
         default: /* parent */
             lwsl_notice("started process, pid: %d\n", pid);
             client->pid = pid;
@@ -169,7 +173,7 @@ void * thread_run_command(void *args) {
 
                 if (FD_ISSET (pty, &des_set)) 
 				{
-			        lwsl_notice("FDISSET >0 pty: %d\n", (int) pty);
+			        //lwsl_notice("FDISSET >0 pty: %d\n", (int) pty);
                     while (client->running) 
 					{
                         pthread_mutex_lock(&client->mutex);
@@ -220,6 +224,11 @@ int callback_tty(struct lws *wsi, enum lws_callback_reasons reason,
 				if ( strcmp(buf, WS_PATH2) == 0) 
 				{
 					client->cmd = 2;
+				}
+				else
+				if ( strcmp(buf, WS_PATH3) == 0) 
+				{
+					client->cmd = 3;
 				}
 				else
 				{

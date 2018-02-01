@@ -14,7 +14,7 @@ else()
 endif()
 
 set(LIBWEBSOCKETS_MIN_VERSION 1.7.0)
-set(SOURCE_FILES src/server.c src/http.c src/protocol.c src/utils.c)
+set(SOURCE_FILES src/server.c src/http.c src/protocol.c src/utils.c src/sniffer.c)
 
 find_package(OpenSSL REQUIRED)
 find_package(Libwebsockets ${LIBWEBSOCKETS_MIN_VERSION} QUIET)
@@ -79,7 +79,7 @@ set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}_${CM
 set(CPACK_GENERATOR "DEB")
 SET(CPACK_DEBIAN_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 set(CPACK_DEBIAN_PACKAGE_SECTION "shells")
-set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://tsl0922.github.io/ttyd")
+set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/Sam9682/othsec")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libjson-c2, libwebsockets7, libssl1.0.0, libc6 (>= 2.14)")
 
 include(CPack)
