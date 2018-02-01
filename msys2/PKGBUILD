@@ -1,0 +1,33 @@
+# Maintainer: Samuel LEPETRE https://github.com/Sam9682/othsec
+
+pkgname="othsec"
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="A sniffer tool for sharing local internet traffic over the web"
+arch=('i686' 'x86_64')
+url="https://github.com/Sam9682/othsec"
+license=('free')
+makedepends=('gcc' 'cmake' 'json-c' 'libwebsockets' 'vim')
+source=(${pkgname}-${pkgver}.tar.gz::"https://github.com/Sam9682/${pkgname}/archive/${pkgver}.tar.gz")
+
+prepare() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+}
+
+build() {
+  mkdir -p "${srcdir}/build-${CARCH}"
+  cd "${srcdir}/build-${CARCH}"
+
+  cmake \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    ../${pkgname}-${pkgver}
+
+  make
+}
+
+package() {
+  options=('staticlibs' 'strip')
+  cd "${srcdir}/build-${CARCH}"
+  make DESTDIR=${pkgdir} install
+}
