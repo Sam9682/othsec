@@ -6,11 +6,11 @@ arch=('i686' 'x86_64')
 url="https://github.com/Sam9682/othsec"
 license=('ELITELCO')
 makedepends=('gcc' 'cmake' 'json-c' 'libwebsockets' 'vim')
-source=("git+https://github.com/Sam9682/${pkgname}.git")
+source=("git+https://github.com/Sam9682/${pkgname}")
 md5sums=('SKIP')
 
 prepare() {
-  cd "${srcdir}"
+  cd ".${srcdir}"
 }
 
 build() {
