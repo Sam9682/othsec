@@ -9,18 +9,12 @@ makedepends=('gcc' 'cmake' 'json-c' 'libwebsockets' 'vim')
 source=("git+https://github.com/Sam9682/${pkgname}")
 md5sums=('SKIP')
 
-prepare() {
-  cd ".${srcdir}"
-}
-
 build() {
-  mkdir -p "${srcdir}/build-${CARCH}"
-  cd "${srcdir}/build-${CARCH}"
  
   cmake \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_BUILD_TYPE=Release \
-    ../${pkgname}-${pkgver}
+    ..
 
   make
 }
