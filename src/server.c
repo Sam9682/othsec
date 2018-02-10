@@ -340,7 +340,7 @@ struct json_object *client_prefs = json_object_new_object();
         fprintf(stdout, "* - ©ELITELCO 2018 - www.elitelco.net                                         *\n");
         fprintf(stdout, "*******************************************************************************\n");
 
-        // get local folder where OTHSEC is exeecuted
+        // get local folder where OTHSEC is executed
         if (getcwd(cwd, sizeof(cwd)) != NULL)
         {
                 i1 = 0;
@@ -408,9 +408,6 @@ struct json_object *client_prefs = json_object_new_object();
         fprintf(stdout, "| This tool is now waiting for a TCP packet on your Net interfaces ...        |\n");
         fprintf(stdout, "-------------------------------------------------------------------------------\n");
 
-        //memmove(test, &TEST_COMMAND1[0], sizeof(*test) * 4);
-        fprintf(stdout, "Trying to execute TCPDUMP on local: %s \n", TEST_COMMAND1);
-        //rc = execvp((const char *)TEST_COMMAND1[0], (char **)&TEST_COMMAND1[0]);
         rc = system(TEST_COMMAND1);
         if ( rc < 0) 
         {
@@ -636,6 +633,7 @@ struct json_object *client_prefs = json_object_new_object();
         lwsl_notice("OTHSEC configuration:\n");
         if (server->credential != NULL)
         	lwsl_notice("  credential: %s\n", server->credential);
+        lwsl_notice("  start command0: %s\n", "sniffer");
         lwsl_notice("  start command1: %s\n", server->command1);
         lwsl_notice("  start command2: %s\n", server->command2);
         lwsl_notice("  reconnect timeout: %ds\n", server->reconnect);

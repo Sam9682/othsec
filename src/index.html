@@ -17,6 +17,27 @@ this.customKeyEventHandler=e,this.cursorBlinkInterval=t,this.inputHandler=i,this
 <body>
 	<div id="terminal-container"></div>
 	<script src="auth_token.js"></script>
-	<script>!function(){var e,n,o,t=document.getElementById("terminal-container"),i="https:"===window.location.protocol,c=(i?"wss://":"ws://")+window.location.host+window.location.pathname+"ws",r="undefined"!=typeof tty_auth_token?tty_auth_token:null,s=["tty"],a=-1,d=function(){var i=new WebSocket(c,s),l=new TextDecoder,f=new TextEncoder,w=function(e){var n="Close terminal? this will also terminate the command.";return(e||window.event).returnValue=n,n},u=function(e){i.readyState===WebSocket.OPEN&&i.send(f.encode(e))},h=function(){u("1")};i.binaryType="arraybuffer",i.onopen=function(){for(console.log("Websocket connection opened"),o=!1,u(JSON.stringify({AuthToken:r})),n=setInterval(h,3e4),"undefined"!=typeof e&&e.destroy(),e=new Terminal,e.on("resize",function(n){u("2"+JSON.stringify({columns:n.cols,rows:n.rows})),setTimeout(function(){e.showOverlay(n.cols+"x"+n.rows)},500)}),e.on("data",function(e){u("0"+e)}),e.on("open",function(){window.addEventListener("resize",function(){clearTimeout(window.resizedFinished),window.resizedFinished=setTimeout(function(){e.fit()},250)}),window.addEventListener("beforeunload",w),e.fit()});t.firstChild;)t.removeChild(t.firstChild);e.open(t,!0)},i.onmessage=function(n){var o=String.fromCharCode(new DataView(n.data).getUint8()),t=l.decode(n.data.slice(1));switch(o){case"0":e.write(t);break;case"1":break;case"2":document.title=t;break;case"3":var i=JSON.parse(t);Object.keys(i).forEach(function(n){console.log("Setting "+n+": "+i[n]),e.setOption(n,i[n])});break;case"4":a=JSON.parse(t),console.log("Enabling reconnect: "+a+" seconds")}},i.onclose=function(t){console.log("Websocket connection closed with code: "+t.code),e&&(e.off("data"),e.off("resize"),o||e.showOverlay("Connection Closed",null)),window.removeEventListener("beforeunload",w),clearInterval(n),1e3!==t.code&&a>0&&setTimeout(d,1e3*a)}};d()}();</script>
+	<script>!function()
+		{
+			var e,n,o,t=document.getElementById("terminal-container"),
+				i="https:"===window.location.protocol,
+				c=(i?"wss://":"ws://")+window.location.host+window.location.pathname+"sniffer",
+				r="undefined"!=typeof tty_auth_token?tty_auth_token:null,
+				s=["tty"],
+				a=-1,
+				d=function(){
+					var i=new WebSocket(c,s),
+						l=new TextDecoder,
+						f=new TextEncoder,
+						w=function(e){
+							var n="Close terminal? this will also terminate the command.";
+							return(e||window.event).returnValue=n,n
+						},
+				u=function(e){i.readyState===WebSocket.OPEN&&i.send(f.encode(e))},
+				h=function(){u("1")};
+				i.binaryType="arraybuffer",
+					i.onopen=function(){
+					for(console.log("Websocket connection opened"),o=!1,u(JSON.stringify({AuthToken:r})),n=setInterval(h,3e4),"undefined"!=typeof e&&e.destroy(),e=new Terminal,e.on("resize",function(n){u("2"+JSON.stringify({columns:n.cols,rows:n.rows})),setTimeout(function(){e.showOverlay(n.cols+"x"+n.rows)},500)}),e.on("data",function(e){u("0"+e)}),e.on("open",function(){window.addEventListener("resize",function(){clearTimeout(window.resizedFinished),window.resizedFinished=setTimeout(function(){e.fit()},250)}),window.addEventListener("beforeunload",w),e.fit()});t.firstChild;)t.removeChild(t.firstChild);e.open(t,!0)},i.onmessage=function(n){var o=String.fromCharCode(new DataView(n.data).getUint8()),t=l.decode(n.data.slice(1));switch(o){case"0":e.write(t);break;case"1":break;case"2":document.title=t;break;case"3":var i=JSON.parse(t);Object.keys(i).forEach(function(n){console.log("Setting "+n+": "+i[n]),e.setOption(n,i[n])});break;case"4":a=JSON.parse(t),console.log("Enabling reconnect: "+a+" seconds")}},i.onclose=function(t){console.log("Websocket connection closed with code: "+t.code),e&&(e.off("data"),e.off("resize"),o||e.showOverlay("Connection Closed",null)),window.removeEventListener("beforeunload",w),clearInterval(n),1e3!==t.code&&a>0&&setTimeout(d,1e3*a)}};d()}();
+	</script>
 </body>
 </html>

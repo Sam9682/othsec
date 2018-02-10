@@ -36,13 +36,16 @@ int tcp=0, udp=0, icmp=0, others=0, igmp=0, total=0, i, j;
 unsigned short g_protocol;
 char SzSource[INET6_ADDRSTRLEN], SzDest[INET6_ADDRSTRLEN];
 
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 int sniffer( int filter_trafic)
 {
     int saddr_size , data_size, to_print;
     struct sockaddr saddr;
     saddr_size = sizeof saddr;
     unsigned char *g_buffer = (unsigned char *) malloc(65536); //Its Big!
-    unsigned char *g_buffer_output = (unsigned char *) malloc(256); //Its not Big!
+    unsigned char *g_buffer_output = (unsigned char *) malloc(1024); //Its not Big!
      
     int sock_raw = socket( AF_PACKET , SOCK_RAW , htons(ETH_P_ALL)) ;
     //setsockopt(sock_raw , SOL_SOCKET , SO_BINDTODEVICE , "eth0" , strlen("eth0")+ 1 );
@@ -62,33 +65,37 @@ int sniffer( int filter_trafic)
             printf("Recvfrom error , failed to get packets\n");
             return -1;
         }
-		else
+	else
         if(data_size >0 )
         {
-			to_print = 1; 
-			//Now process the packet
-			to_print = ProcessPacket(g_buffer , data_size, g_buffer_output, filter_trafic);
+		to_print = 1; 
+		//Now process the packet
+		to_print = ProcessPacket(g_buffer , data_size, g_buffer_output, filter_trafic);
 
-			if (to_print) printf("%s\n", g_buffer_output);
-			memset(g_buffer_output, 0, 255);
-		}
+		if (to_print) printf("%s\n", g_buffer_output);
+		memset(g_buffer_output, 0, 255);
+	}
  
     }
     close(sock_raw);
     return 0;
 }
  
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 int ProcessPacket(unsigned char* buffer, int size, unsigned char* buffer_out, int filter_trafic)
 {
-    //Get the IP Header part of this packet , excluding the ethernet header
-    struct iphdr *iph = (struct iphdr*)(buffer + sizeof(struct ethhdr));
-    struct ip6_hdr *iph6 = (struct ip6_hdr*)(buffer + sizeof(struct ethhdr));
-	char *l_buffer;
+//Get the IP Header part of this packet , excluding the ethernet header
+struct iphdr *iph = (struct iphdr*)(buffer + sizeof(struct ethhdr));
+struct ip6_hdr *iph6 = (struct ip6_hdr*)(buffer + sizeof(struct ethhdr));
+
+	char *l_buffer = buffer;
 	++total;
     
 	g_protocol = print_ethernet_header(buffer, size);
 		
-	if (ntohs(g_protocol) == ETH_P_IP)
+	if ( g_protocol == ETH_P_IP)
 	{
 		memset(&source, 0, sizeof(source));
 		source.sin_addr.s_addr = iph->saddr;
@@ -106,6 +113,10 @@ int ProcessPacket(unsigned char* buffer, int size, unsigned char* buffer_out, in
 			return 0;
 		}
 		if ( filter_trafic && !strncmp(inet_ntoa(source.sin_addr),"192.168",7) && (!strncmp(inet_ntoa(dest.sin_addr),"192.168",7)) )
+		{
+			return 0;
+		}
+		if ( filter_trafic && !strncmp(inet_ntoa(source.sin_addr),"224",3) && (!strncmp(inet_ntoa(dest.sin_addr),"224",3)) )
 		{
 			return 0;
 		}
@@ -137,7 +148,7 @@ int ProcessPacket(unsigned char* buffer, int size, unsigned char* buffer_out, in
 		}
 	}
 	else
-	if (ntohs(g_protocol) == ETH_P_IPV6)
+	if ( g_protocol == ETH_P_IPV6)
 	{
 		
 		memset(&source6, 0, sizeof(source6));
@@ -154,13 +165,58 @@ int ProcessPacket(unsigned char* buffer, int size, unsigned char* buffer_out, in
 			return 0;
 		}
 		
-		++tcp;
-		return print_tcp_packet(buffer , size, buffer_out);
+		switch (iph6->ip6_ctlun.ip6_un1.ip6_un1_nxt) //Check the Protocol and do accordingly...
+		{
+			case 1:  //ICMP Protocol
+				++icmp;
+				return print_icmp_packet(l_buffer , size, buffer_out);
+				break;
+
+			case 2:  //IGMP Protocol
+				++igmp;
+				break;
+
+			case 6:  //TCP Protocol
+				++tcp;
+				return print_tcp_packet(l_buffer , size, buffer_out);
+				break;
+
+			case 17: //UDP Protocol
+				++udp;
+				return print_udp_packet(l_buffer , size, buffer_out);
+				break;
+
+			default: //Some Other Protocol like ARP etc.
+				++others;
+				break;
+		}
+	}
+	else
+	if (g_protocol == ETH_P_ARP)
+	{
 	}
 	
 return 0;
 }
 
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
+unsigned short print_ethernet_header(unsigned char* Buffer, int Size)
+{
+    struct ethhdr *eth = (struct ethhdr *)Buffer;
+     
+    // ETHER
+    //Buffer_out += sprintf(Buffer_out , "%.2X-%.2X-%.2X-%.2X-%.2X-%.2X ", eth->h_dest[0] , eth->h_dest[1] , eth->h_dest[2] , eth->h_dest[3] , eth->h_dest[4] , eth->h_dest[5]);							// Dest Port
+    //Buffer_out += sprintf(Buffer_out , "%.2X-%.2X-%.2X-%.2X-%.2X-%.2X ", eth->h_source[0] , eth->h_source[1] , eth->h_source[2] , eth->h_source[3] , eth->h_source[4] , eth->h_source[5]);	// Source Port
+    //Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)eth->h_proto);							// Source Port
+	
+	return ntohs((uint16_t)eth->h_proto);
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 char * print_ip6_header(unsigned char* Buffer, int Size, unsigned char* Buffer_out)
 {
     time_t now_datetime = time(NULL);
@@ -171,119 +227,110 @@ char * print_ip6_header(unsigned char* Buffer, int Size, unsigned char* Buffer_o
     int header_size =  sizeof(struct ethhdr) + iphdrlen + tcph->doff*4;
            
     // TIMESTAMP
-    Buffer_out += sprintf(Buffer_out , "%ld ", now_datetime);								// datetime
+    Buffer_out += sprintf(Buffer_out , "%ld ", now_datetime);						// datetime
 
     // IP
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->version);					// IP Version
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iphdrlen);						// IP Header Length
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->tos);						// Type Of Service
-    //Buffer_out += sprintf(Buffer_out , "%d ", ntohs(iph->tot_len));							// IP Total Length
-    //Buffer_out += sprintf(Buffer_out , "%d ", ntohs(iph->id));								// Identification
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->ttl);						// TTL
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->protocol);				// Protocol
-    //Buffer_out += sprintf(Buffer_out , "%s ", "TCP");				// Protocol
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)ntohs(iph->check));				// Checksum
-    Buffer_out += sprintf(Buffer_out , "%s ", SzSource);					// Source IP
-    Buffer_out += sprintf(Buffer_out , "%s ", SzDest);					// Destination IP
-	
-	return Buffer_out;
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip6_vfc);					// IP Version
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint32_t)iph->ip6_flow);					// Flow
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip6_plen);					// IP Header Length
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip6_nxt);					// Next Header
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip6_hlim);					// Limit
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip6_hops);					// Hops
+    Buffer_out += sprintf(Buffer_out , "%s ", SzSource);						// Source IP
+    Buffer_out += sprintf(Buffer_out , "%s ", SzDest);							// Destination IP
+
+    return Buffer_out;
 }
 
 
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 char * print_ip_header(unsigned char* Buffer, int Size, unsigned char* Buffer_out)
 {
     time_t now_datetime = time(NULL);
     unsigned short iphdrlen;
     struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
-    iphdrlen =iph->ihl*4;
-    struct tcphdr *tcph=(struct tcphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
-    int header_size =  sizeof(struct ethhdr) + iphdrlen + tcph->doff*4;
+    iphdrlen = sizeof(struct iphdr);
            
     // TIMESTAMP
-    Buffer_out += sprintf(Buffer_out , "%ld ", now_datetime);								// datetime
+    Buffer_out += sprintf(Buffer_out , "%ld ", now_datetime);						// datetime
 
     // IP
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->version);					// IP Version
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iphdrlen);						// IP Header Length
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->tos);						// Type Of Service
-    Buffer_out += sprintf(Buffer_out , "%d ", ntohs(iph->tot_len));							// IP Total Length
-    Buffer_out += sprintf(Buffer_out , "%d ", ntohs(iph->id));								// Identification
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->ttl);						// TTL
-    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)iph->protocol);				// Protocol
-    Buffer_out += sprintf(Buffer_out , "%s ", "TCP");				// Protocol
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)ntohs(iph->check));				// Checksum
-    Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(source.sin_addr));					// Source IP
-    Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(dest.sin_addr));					// Destination IP
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->version);					// IP Version
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iphdrlen);					// IP Header Length
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->tos);					// Type Of Service
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->tot_len);						// IP Total Length
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->id);					// Identification
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ttl);					// TTL
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->protocol);					// Protocol
+    //Buffer_out += sprintf(Buffer_out , "%s ", "TCP");							// Protocol
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)ntohs(iph->check));				// Checksum
+    Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(source.sin_addr));				// Source IP
+    Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(dest.sin_addr));				// Destination IP
 	
 	return Buffer_out;
 }
  
 
-unsigned short print_ethernet_header(unsigned char* Buffer, int Size)
-{
-    struct ethhdr *eth = (struct ethhdr *)Buffer;
-     
-    // ETHER
-    //Buffer_out += sprintf(Buffer_out , "%.2X-%.2X-%.2X-%.2X-%.2X-%.2X ", eth->h_dest[0] , eth->h_dest[1] , eth->h_dest[2] , eth->h_dest[3] , eth->h_dest[4] , eth->h_dest[5]);							// Dest Port
-    //Buffer_out += sprintf(Buffer_out , "%.2X-%.2X-%.2X-%.2X-%.2X-%.2X ", eth->h_source[0] , eth->h_source[1] , eth->h_source[2] , eth->h_source[3] , eth->h_source[4] , eth->h_source[5]);	// Source Port
-    //Buffer_out += sprintf(Buffer_out , "%u ", (unsigned short)eth->h_proto);							// Source Port
-	
-	return (unsigned short)eth->h_proto;
-}
-  
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 int print_tcp_packet(unsigned char* Buffer, int Size, unsigned char* Buffer_out)
 {
-    unsigned short iphdrlen;
-	if (ntohs(g_protocol) == ETH_P_IP)
+	unsigned short iphdrlen;
+	if (g_protocol == ETH_P_IP)
 	{
-    	struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
-	    iphdrlen = iph->ihl*4;
+    		struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
+	    	iphdrlen = iph->ihl*4;
+	    	//iphdrlen = sizeof(struct iphdr);
 	}
 	else
-	if (ntohs(g_protocol) == ETH_P_IPV6)
+	if (g_protocol == ETH_P_IPV6)
 	{
-    	struct ip6_hdr *iph = (struct ip6_hdr *)(Buffer  + sizeof(struct ethhdr) );
-	    iphdrlen = sizeof(struct ip6_hdr);
+    		struct ip6_hdr *iph = (struct ip6_hdr *)(Buffer  + sizeof(struct ethhdr) );
+	    	iphdrlen = sizeof(struct ip6_hdr);
 	}
-		
-    struct tcphdr *tcph=(struct tcphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
+	
+	struct tcphdr *tcph=(struct tcphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
 
-	if (ntohs(g_protocol) == ETH_P_IP)
-	{
-	    Buffer_out = print_ip_header(Buffer, Size, Buffer_out);
-	}
-	else
-	if (ntohs(g_protocol) == ETH_P_IPV6)
+	if (g_protocol == ETH_P_IPV6)
 	{
 	    Buffer_out = print_ip6_header(Buffer, Size, Buffer_out);
 	}
+	else
+	if (g_protocol == ETH_P_IP)
+	{
+	    Buffer_out = print_ip_header(Buffer, Size, Buffer_out);
+	}
 		
 	// TCP
-    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->source));							// Source Port
-    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->dest));							// Destination Port
-    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->seq));							// Sequence Number
-    Buffer_out += sprintf(Buffer_out , "%u ", ntohl(tcph->ack_seq));						// Acknowledge Number
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)tcph->doff*4);					// Header Length
-    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->urg)?'U':'-');							// Urgent Flag
-    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->ack)?'A':'-');							// Acknowledgement Flag
-    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->psh)?'P':'-');							// Push Flag
-    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->rst)?'R':'-');							// Reset Flag
-    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->syn)?'S':'-');							// Synchronise Flag
-    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->fin)?'F':'-');							// Finish Flag
-    Buffer_out += sprintf(Buffer_out , "%d ", ntohs(tcph->window));							// Window
-    Buffer_out += sprintf(Buffer_out , "%d ", ntohs(tcph->check));							// Checksum
-    Buffer_out += sprintf(Buffer_out , "%d ", tcph->urg_ptr);								// Urgent Pointer
-	
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->source));					// Source Port
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->dest));					// Destination Port
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->seq));					// Sequence Number
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohl(tcph->ack_seq));					// Acknowledge Number
+	    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)tcph->doff*4);					// Header Length
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->urg)?'U':'-');					// Urgent Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->ack)?'A':'-');					// Acknowledgement Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->psh)?'P':'-');					// Push Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->rst)?'R':'-');					// Reset Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->syn)?'S':'-');					// Synchronise Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->fin)?'F':'-');					// Finish Flag
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->window));					// Window
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->check));					// Checksum
+	    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)tcph->urg_ptr);					// Urgent Pointer
+
     // DATA
     // PrintData(Buffer + header_size , Size - header_size );
    		
 return 1;
 }
  
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 int print_udp_packet(unsigned char *Buffer , int Size, unsigned char* Buffer_out)
 {
     unsigned short iphdrlen;
-	if (ntohs(g_protocol) == ETH_P_IP)
+	if (g_protocol == ETH_P_IP)
 	{
     	struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
 	    iphdrlen = iph->ihl*4;
@@ -306,10 +353,13 @@ int print_udp_packet(unsigned char *Buffer , int Size, unsigned char* Buffer_out
 return 1;     
 }
  
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 int print_icmp_packet(unsigned char* Buffer , int Size, unsigned char* Buffer_out)
 {
     unsigned short iphdrlen;
-	if (ntohs(g_protocol) == ETH_P_IP)
+	if (g_protocol == ETH_P_IP)
 	{
     	struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
 	    iphdrlen = iph->ihl*4;
@@ -344,6 +394,9 @@ int print_icmp_packet(unsigned char* Buffer , int Size, unsigned char* Buffer_ou
 return 1;
 }
  
+
+//-------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
 void PrintData (unsigned char* data , int Size)
 {
     int i , j;
@@ -390,3 +443,9 @@ void PrintData (unsigned char* data , int Size)
         }
     }
 }
+
+//int main()
+//{
+// printf("Testing sniffer\n");
+// sniffer(1);
+//}
