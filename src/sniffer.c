@@ -22,7 +22,7 @@
 
 #define     ICMP_ECHOREPLY  1
 #if defined(__MSYS__) || defined(__CYGWIN__)
-	#define 	AF_PACKET      17
+	#define 	AF_PACKET      2
 #else
 	#include<net/ethernet.h>  //For ether_header
 #endif
@@ -55,7 +55,11 @@ int sniffer( int filter_trafic)
     unsigned char *g_buffer = (unsigned char *) malloc(65536); //Its Big!
     unsigned char *g_buffer_output = (unsigned char *) malloc(1024); //Its not Big!
      
-    int sock_raw = socket( AF_PACKET , SOCK_RAW , htons(ETH_P_ALL)) ;
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    int sock_raw = socket( AF_INET , SOCK_STREAM , 0) ;
+#else
+    int sock_raw = socket( AF_INET , SOCK_RAW , htons(ETH_P_ALL)) ;
+#endif
     //setsockopt(sock_raw , SOL_SOCKET , SO_BINDTODEVICE , "eth0" , strlen("eth0")+ 1 );
      
     if(sock_raw < 0)
