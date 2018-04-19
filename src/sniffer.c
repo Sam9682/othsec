@@ -11,14 +11,22 @@
 #include<netinet/tcp.h>   //Provides declarations for tcp header
 #include<netinet/ip.h>    //Provides declarations for ip header
 #include<netinet/ip6.h>    //Provides declarations for ip header
-#include<netinet/if_ether.h>  //For ETH_P_ALL
-#include<net/ethernet.h>  //For ether_header
 #include<sys/socket.h>
 #include<arpa/inet.h>
 #include<sys/ioctl.h>
 #include<sys/time.h>
 #include<sys/types.h>
 #include<unistd.h>
+
+#include "if_ether.h"  //For ETH_P_ALL
+
+#define     ICMP_ECHOREPLY  1
+#if defined(__MSYS__) || defined(__CYGWIN__)
+	#define 	AF_PACKET      17
+#else
+	#include<net/ethernet.h>  //For ether_header
+#endif
+
  
 int ProcessPacket(unsigned char * , int, unsigned char *, int);
 char * print_ip_header(unsigned char * , int, unsigned char *);
@@ -87,7 +95,11 @@ int sniffer( int filter_trafic)
 int ProcessPacket(unsigned char* buffer, int size, unsigned char* buffer_out, int filter_trafic)
 {
 //Get the IP Header part of this packet , excluding the ethernet header
+#if defined(__MSYS__) || defined(__CYGWIN__)
+struct ip *iph = (struct ip*)(buffer + sizeof(struct ethhdr));
+#else
 struct iphdr *iph = (struct iphdr*)(buffer + sizeof(struct ethhdr));
+#endif
 struct ip6_hdr *iph6 = (struct ip6_hdr*)(buffer + sizeof(struct ethhdr));
 
 	char *l_buffer = buffer;
@@ -98,10 +110,18 @@ struct ip6_hdr *iph6 = (struct ip6_hdr*)(buffer + sizeof(struct ethhdr));
 	if ( g_protocol == ETH_P_IP)
 	{
 		memset(&source, 0, sizeof(source));
+#if defined(__MSYS__) || defined(__CYGWIN__)
+		source.sin_addr = iph->ip_src;
+#else
 		source.sin_addr.s_addr = iph->saddr;
+#endif
 
 		memset(&dest, 0, sizeof(dest));
+#if defined(__MSYS__) || defined(__CYGWIN__)
+		dest.sin_addr = iph->ip_dst;
+#else
 		dest.sin_addr.s_addr = iph->daddr;
+#endif
 	
 		//"(ip)", "and", "(not", "(broadcast", "or", "multicast)", "and", "not", "(port", "514)", "and", "not", "(src", "net", "(10", "or", "127", "or", "169.254", "or", "192.168", "or", "172.16/12", "or", "224.0.0.0/4)", "and", "dst", "net", "(10", "or", "127", "or", "169.254", "or", "192.168", "or", "172.16/12", "or", "224.0.0.0/4))                    
 		if ( filter_trafic && !strncmp(inet_ntoa(source.sin_addr),"127",3) && (!strncmp(inet_ntoa(dest.sin_addr),"127",3)) )
@@ -121,7 +141,11 @@ struct ip6_hdr *iph6 = (struct ip6_hdr*)(buffer + sizeof(struct ethhdr));
 			return 0;
 		}
 		
+#if defined(__MSYS__) || defined(__CYGWIN__)
+		switch (iph->ip_p) //Check the Protocol and do accordingly...
+#else
 		switch (iph->protocol) //Check the Protocol and do accordingly...
+#endif
 		{
 			case 1:  //ICMP Protocol
 				++icmp;
@@ -224,8 +248,13 @@ char * print_ip6_header(unsigned char* Buffer, int Size, unsigned char* Buffer_o
     struct ip6_hdr *iph = (struct ip6_hdr *)(Buffer  + sizeof(struct ethhdr) );
     iphdrlen = sizeof( struct ip6_hdr);
     struct tcphdr *tcph=(struct tcphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
+	
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    int header_size =  sizeof(struct ethhdr) + iphdrlen + tcph->th_off*4;
+#else
     int header_size =  sizeof(struct ethhdr) + iphdrlen + tcph->doff*4;
-           
+#endif
+	
     // TIMESTAMP
     Buffer_out += sprintf(Buffer_out , "%ld ", now_datetime);						// datetime
 
@@ -249,13 +278,32 @@ char * print_ip_header(unsigned char* Buffer, int Size, unsigned char* Buffer_ou
 {
     time_t now_datetime = time(NULL);
     unsigned short iphdrlen;
+	
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    struct ip *iph = (struct ip *)(Buffer  + sizeof(struct ethhdr) );
+    iphdrlen = sizeof(struct ip);
+#else
     struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
     iphdrlen = sizeof(struct iphdr);
+#endif
            
     // TIMESTAMP
     Buffer_out += sprintf(Buffer_out , "%ld ", now_datetime);						// datetime
 
     // IP
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip_v);					// IP Version
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iphdrlen);					// IP Header Length
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip_tos);					// Type Of Service
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip_off);						// IP Total Length
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip_id);					// Identification
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip_ttl);					// TTL
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->ip_p);					// Protocol
+    //Buffer_out += sprintf(Buffer_out , "%s ", "TCP");							// Protocol
+    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)ntohs(iph->ip_sum));				// Checksum
+    Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(source.sin_addr));				// Source IP
+    Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(dest.sin_addr));				// Destination IP
+#else
     Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->version);					// IP Version
     Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iphdrlen);					// IP Header Length
     Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)iph->tos);					// Type Of Service
@@ -267,7 +315,8 @@ char * print_ip_header(unsigned char* Buffer, int Size, unsigned char* Buffer_ou
     Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)ntohs(iph->check));				// Checksum
     Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(source.sin_addr));				// Source IP
     Buffer_out += sprintf(Buffer_out , "%s ", inet_ntoa(dest.sin_addr));				// Destination IP
-	
+#endif
+
 	return Buffer_out;
 }
  
@@ -279,8 +328,13 @@ int print_tcp_packet(unsigned char* Buffer, int Size, unsigned char* Buffer_out)
 	unsigned short iphdrlen;
 	if (g_protocol == ETH_P_IP)
 	{
-    		struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
-	    	iphdrlen = iph->ihl*4;
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    	struct ip *iph = (struct ip *)(Buffer  + sizeof(struct ethhdr) );
+		iphdrlen = iph->ip_hl*4;
+#else
+    	struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
+		iphdrlen = iph->ihl*4;
+#endif
 	    	//iphdrlen = sizeof(struct iphdr);
 	}
 	else
@@ -303,6 +357,20 @@ int print_tcp_packet(unsigned char* Buffer, int Size, unsigned char* Buffer_out)
 	}
 		
 	// TCP
+#if defined(__MSYS__) || defined(__CYGWIN__)
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->th_sport));					// Source Port
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->th_dport));					// Destination Port
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->th_seq));					// Sequence Number
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohl(tcph->th_ack));					// Acknowledge Number
+	    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)tcph->th_off*4);					// Header Length
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->th_flags)?'U':'-');					// Urgent Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->th_flags)?'A':'-');					// Acknowledgement Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->th_flags)?'P':'-');					// Push Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->th_flags)?'R':'-');					// Reset Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->th_flags)?'S':'-');					// Synchronise Flag
+	    Buffer_out += sprintf(Buffer_out , "%c ", (tcph->th_flags)?'F':'-');					// Finish Flag
+	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->th_sum));					// Checksum
+#else
 	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->source));					// Source Port
 	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->dest));					// Destination Port
 	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->seq));					// Sequence Number
@@ -317,6 +385,7 @@ int print_tcp_packet(unsigned char* Buffer, int Size, unsigned char* Buffer_out)
 	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->window));					// Window
 	    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(tcph->check));					// Checksum
 	    Buffer_out += sprintf(Buffer_out , "%u ", (uint16_t)tcph->urg_ptr);					// Urgent Pointer
+#endif
 
     // DATA
     // PrintData(Buffer + header_size , Size - header_size );
@@ -332,8 +401,13 @@ int print_udp_packet(unsigned char *Buffer , int Size, unsigned char* Buffer_out
     unsigned short iphdrlen;
 	if (g_protocol == ETH_P_IP)
 	{
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    	struct ip *iph = (struct ip *)(Buffer  + sizeof(struct ethhdr) );
+	    iphdrlen = iph->ip_hl*4;
+#else
     	struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
 	    iphdrlen = iph->ihl*4;
+#endif
 	}
 	else
 	{
@@ -345,10 +419,17 @@ int print_udp_packet(unsigned char *Buffer , int Size, unsigned char* Buffer_out
 	Buffer_out = print_ip_header(Buffer, Size, Buffer_out);
      
     // UDP
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(udph->uh_sport));							// Source Port
+    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(udph->uh_dport));							// Destination Port
+    Buffer_out += sprintf(Buffer_out , "%u ", ntohs(udph->uh_ulen));							// UDP Length
+    Buffer_out += sprintf(Buffer_out , "%u ", ntohl(udph->uh_sum));							// UDP Checksum
+#else
     Buffer_out += sprintf(Buffer_out , "%u ", ntohs(udph->source));							// Source Port
     Buffer_out += sprintf(Buffer_out , "%u ", ntohs(udph->dest));							// Destination Port
     Buffer_out += sprintf(Buffer_out , "%u ", ntohs(udph->len));							// UDP Length
     Buffer_out += sprintf(Buffer_out , "%u ", ntohl(udph->check));							// UDP Checksum
+#endif
 	
 return 1;     
 }
@@ -361,30 +442,36 @@ int print_icmp_packet(unsigned char* Buffer , int Size, unsigned char* Buffer_ou
     unsigned short iphdrlen;
 	if (g_protocol == ETH_P_IP)
 	{
-    	struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
+#if defined(__MSYS__) || defined(__CYGWIN__)
+    	struct ip *iph = (struct ip *)(Buffer  + sizeof(struct ethhdr) );
+	    iphdrlen = iph->ip_hl*4;
+#else
+		struct iphdr *iph = (struct iphdr *)(Buffer  + sizeof(struct ethhdr) );
 	    iphdrlen = iph->ihl*4;
+#endif
 	}
 	else
 	{
     	struct ip6_hdr *iph = (struct ip6_hdr *)(Buffer  + sizeof(struct ethhdr) );
 	    iphdrlen = sizeof(struct ip6_hdr);
 	}    struct icmphdr *icmph = (struct icmphdr *)(Buffer + iphdrlen  + sizeof(struct ethhdr));
-     int header_size =  sizeof(struct ethhdr) + iphdrlen + sizeof icmph;
+    
+	//int header_size =  sizeof(struct ethhdr) + iphdrlen + sizeof icmph;
      
-	Buffer_out = print_ip_header(Buffer, Size, Buffer_out);
+	//Buffer_out = print_ip_header(Buffer, Size, Buffer_out);
 
 	// ICMP
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)icmph->type);					// Type
-    if((unsigned int)(icmph->type) == 11)
-    {
-		Buffer += sprintf(Buffer_out , "%s ", "(TTL Expired)");								// TTL
-    }
-    else if((unsigned int)(icmph->type) == ICMP_ECHOREPLY)
-    {
-		Buffer_out += sprintf(Buffer_out , "%s ", "(ICMP Echo Reply)");						// TTL
-    }
-    Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)icmph->code);					// Code
-    Buffer_out += sprintf(Buffer_out , "%d ", ntohs(icmph->checksum));						// Checksum
+    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)icmph->type);					// Type
+    //if((unsigned int)(icmph->type) == 11)
+    //{
+	//	Buffer += sprintf(Buffer_out , "%s ", "(TTL Expired)");								// TTL
+    //}
+    //else if((unsigned int)(icmph->type) == ICMP_ECHOREPLY)
+    //{
+	//	Buffer_out += sprintf(Buffer_out , "%s ", "(ICMP Echo Reply)");						// TTL
+    //}
+    //Buffer_out += sprintf(Buffer_out , "%d ", (unsigned int)icmph->code);					// Code
+    //Buffer_out += sprintf(Buffer_out , "%d ", ntohs(icmph->checksum));						// Checksum
     //fprintf(logfile , "   |-ID       : %d\n",ntohs(icmph->id));
     //fprintf(logfile , "   |-Sequence : %d\n",ntohs(icmph->sequence));
           
